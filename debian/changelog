@@ -1,0 +1,5 @@
+qcnpuperfmon (1.0.0-1) unstable; urgency=medium
+
+  * Initial release -- standalone daemon using Debian-packaged libqcnpuperf.
+
+ -- samfreund-qc <freund@qti.qualcomm.com>  Mon, 27 Jul 2026 00:00:00 +0000
