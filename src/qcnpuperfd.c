@@ -31,8 +31,7 @@
  * @file qcnpuperfd.c
  * @brief Daemon that writes NPU/DSP performance stats to a file every second.
  *
- * Uses the Debian-packaged libqcnpuperf API (qcom_dsp_open / qcom_dsp_close)
- * rather than building the library from source.
+ * Uses the Debian-packaged libqcnpuperf library for DSP communication.
  *
  * Stats are written to a temporary file then atomically renamed into place so
  * that readers always see a complete, consistent snapshot.
@@ -52,7 +51,7 @@
  *   hmx_utilization=<float>
  */
 
-#include <qcom_dsp.h>
+#include "qcom_dsp.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -128,10 +127,6 @@ static char *build_tmp_path(const char *output_path)
 /**
  * write_stats - write the four NPU metrics to fd in key=value format.
  *
- * Uses accessor functions from libqcnpuperf rather than accessing struct
- * members directly, so this daemon is decoupled from the library's internal
- * layout.
- *
  * Returns the number of bytes written, or -1 on error.
  */
 static int write_stats(int fd, const struct sysmon_query_prof_data *data)
@@ -142,10 +137,10 @@ static int write_stats(int fd, const struct sysmon_query_prof_data *data)
 		"q6_clock_khz=%u\n"
 		"hvx_utilization=%.2f\n"
 		"hmx_utilization=%.2f\n",
-		qcom_dsp_prof_get_q6_utilization(data),
-		qcom_dsp_prof_get_q6_clock(data),
-		qcom_dsp_prof_get_hvx_utilization(data),
-		qcom_dsp_prof_get_hmx_utilization(data));
+		data->q6_utilization,
+		data->q6_clock,
+		data->hvx_utilization,
+		data->hmx_utilization);
 
 	if (len < 0 || (size_t)len >= sizeof(buf)) {
 		fprintf(stderr, "qcnpuperfd: snprintf overflow\n");
@@ -176,9 +171,9 @@ int main(int argc, char *argv[])
 
 	fprintf(stderr, "qcnpuperfd: starting, output=%s\n", output_path);
 
-	struct qcom_dsp_ctx *ctx = qcom_dsp_open(DSP_NPU0);
-	if (!ctx) {
-		fprintf(stderr, "qcnpuperfd: qcom_dsp_open failed\n");
+	enum DspReturnCode ret = qcom_dsp_init(DSP_NPU0);
+	if (ret != RETURN_CODE_DSP_LIB_SUCCESS) {
+		fprintf(stderr, "qcnpuperfd: qcom_dsp_init failed, ret=%d\n", ret);
 		free(tmp_path);
 		return EXIT_FAILURE;
 	}
@@ -186,7 +181,7 @@ int main(int argc, char *argv[])
 	while (running) {
 		int no_metrics = 0;
 		struct sysmon_query_prof_data *data =
-			qcom_dsp_get_prof_data(ctx, &no_metrics);
+			qcom_dsp_get_prof_data(DSP_NPU0, &no_metrics);
 
 		if (!data || no_metrics <= 0) {
 			fprintf(stderr, "qcnpuperfd: qcom_dsp_get_prof_data failed\n");
@@ -233,7 +228,9 @@ int main(int argc, char *argv[])
 	unlink(tmp_path);
 	free(tmp_path);
 
-	qcom_dsp_close(ctx);
+	ret = qcom_dsp_deinit(DSP_NPU0);
+	if (ret != RETURN_CODE_DSP_LIB_SUCCESS)
+		fprintf(stderr, "qcnpuperfd: qcom_dsp_deinit failed, ret=%d\n", ret);
 
 	fprintf(stderr, "qcnpuperfd: exiting\n");
 	return exit_code;
