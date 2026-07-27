@@ -24,4 +24,3 @@ target_link_directories(qcnpuperfd PRIVATE ${QCNPUPERF_LIBRARY_DIRS})
 target_link_libraries(qcnpuperfd PRIVATE ${QCNPUPERF_LIBRARIES})
 
 install(TARGETS qcnpuperfd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES qcnpuperfd.service DESTINATION lib/systemd/system)
